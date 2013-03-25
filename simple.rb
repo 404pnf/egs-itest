@@ -2,7 +2,6 @@
 require 'csv'
 require 'pp'
 
-
 DEBUG = nil
 input = ARGV[0]
 csv = CSV.read(input, :headers => true)
@@ -18,7 +17,7 @@ pp "随机显示 #{id} :  original csv_hash #{hash[id]}" if DEBUG
 # add keys
 # 序号；考点；分值；时间限制；填空题输入大小
 step_1 = hash.map { |h| 
-  %w(egs-序号 egs-考点 egs-分值 egs-时间限制 egs-填空题输入大小).each { |key| h[key] = nil}
+  %w(egs-序号 egs-父级题目id egs-考点 egs-分值 egs-时间限制 egs-填空题输入大小).each { |key| h[key] = nil}
   h}
 pp "step 1:  #{step_1[id]}" if DEBUG
 
