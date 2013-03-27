@@ -3,7 +3,7 @@
 require 'csv'
 require 'pp'
 
-DEBUG = true
+DEBUG = nil #true
 
 # stdlib zlib adler32 generate a checksum with numbers only
 # Zlib::adler32(str)
@@ -47,8 +47,8 @@ pp step_2[id] if DEBUG
 # step 3
 # 选项与解析
 # 父题（既父级题目id为空的）：
-# 对应EGS目标列“选项与解析”，但要扫描下csv中的“题干”，如果题干内容在“选项与解析”中有，则直接使用“选项与解析”中的内容。
-# 否则为csv文件的“选项与解析”+“题干”
+# 对应EGS目标列“选项与解析”，但要扫描下csv中的“题干”，如果题干内容在“选项与解析”中有，则直接使用“选项与解析”中的内容，前面加上"||"
+# 否则为csv文件的“选项与解析”+“题干”，前面加上“||”
 
 # 子题（既父级题目id不为空的）：
 # csv结构中，'选项与解析' ->  选项之间分隔符为”_|_”，正确答案的数组编号（从0开始）与选项之间分隔符为 “||”
@@ -97,14 +97,14 @@ step_3 = step_2.map {|h|
     answers.split('_|_').each_with_index {|choice, idx|
       if idx == correct_id
         if explanation or  explanation.empty?
-          egs_choices << "1--#{choice}"
+          egs_choices << "||#{choice}"
         elsif explanation.include? tigan
-          egs_choices <<  "1--#{choice}||#{explanation}"     
+          egs_choices <<  "||#{choice}||#{explanation}"     
         else 
-          egs_choices << "1--#{choice}||#{explanation} #{tigan}"
+          egs_choices << "||#{choice}||#{explanation} #{tigan}"
         end
-      else
-        egs_choices << "0--#{choice}"
+        # else
+        # egs_choices << "0--#{choice}"
       end
     }
     egs_choices_str = egs_choices.join('&&')
@@ -125,14 +125,37 @@ final_hash = step_3.each {|h|
   h
 }
 pp final_hash[id] if DEBUG
-headers = final_hash[0].keys.join(',')
-arr_of_csv = final_hash.map {|h|
-  h.values.to_csv(:force_quotes => true)
-}
+
+
+# final_hash is an ARRAY of hashes
+sorted = final_hash.each { |record|
+  record['序号自定义'] = record['egs-序号']
+  record['标题自定义'] = record['egs-标题']
+  record['父级题目id自定义'] = record['egs-父级题目id']
+  record['题型 试卷题型'] = record['egs-题型']
+  record['基本题型-EGS试题'] = record['egs-基本题型']
+  record['Directions-材料-题干'] = record['egs-Directions材料题干']
+  record['选项与解析'] = record['egs-选项与解析']
+  record['选项是否随机出现-1是-0否- 默认1）'] = record['egs-选项是否随机出现']
+  record['考点'] = record['egs-考点']
+  record['标签'] = record['egs-Egs对应标签题型']
+  record['分值'] = record['egs-分值']
+  record['时间限制'] = record['egs-时间限制']
+  record['是否依赖上级父题目-1是-0否-默认1'] = record['egs-是否依赖上级父题目']
+  record['子题目是否可以随机出现-1是-2否-默认2'] = record['egs-子题目是否可以随机出现']
+  record['附件地址'] = record['egs-资源地址']
+  record['填空题输入框大小'] = record['egs-填空题输入大小']
+  record.delete_if {|k, _|  k =~ /egs/}
+  }
+  
+headers = sorted[0].keys.join(',')
+arr_of_csv = sorted.map { |h| h.values.to_csv(:force_quotes => true) }
 pp arr_of_csv[id] if DEBUG
 final_csv_str = ''
 final_csv_str << headers << "\n" << arr_of_csv.join # arr_of_csv already has "\n" at the end of each record
-File.write('out-cet.csv', final_csv_str)
+outputfile = 'out-cet.csv'
+File.write(outputfile, final_csv_str)
+pp "生成的csv文件是 #{outputfile}。"
 
 # ref: http://stackoverflow.com/questions/4420677/storing-csv-data-in-ruby-hash
 
