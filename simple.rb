@@ -31,10 +31,11 @@ step_2 = step_1.map { |h|
 pp "step 2:  #{step_2[id]}" if DEBUG
 
 # step_3
-# 增加key: '标题'
+# 增加key: '标题' '标签'
 # 增加一列：命名规则：试卷类别+”-”+ egs对应标签题型+”-”+基本题型  （英文连字符连接）
 step_3 = step_2.map {|h|
   h['egs-标题'] = "#{h['试卷类别']}-#{h['egs-Egs对应标签题型']}-#{h['基本题型']}"
+  h['egs-标签'] = "#{h['试卷类别']}, #{h['egs-Egs对应标签题型']}"
   h
 }
 pp "step 3:  #{step_3[id]}" if DEBUG
@@ -42,6 +43,18 @@ pp "step 3:  #{step_3[id]}" if DEBUG
 # step 4
 # 处理选项吧
 # input "选项与解析"=>"inept_|_inflexible_|_influential_|_adept,3",
+# 注意 选项中也可能出现英文逗号 "from, to _|_ to, from_|_test,1"
+# 因此不能直接用split分。除非用最后一个英文逗号
+# 两种方法
+# 一：用最后一位数字做分割符号
+# >> 'a,b3,c,3'.split(/(\d$)/)
+# => ["a,b3,c,", "3"]
+# 还不够，注意数组的第一个值最后有个逗号，应该去掉，因此需要
+# >> 'a,b3,c,3'.split(/,(\d$)/)
+# => ["a,b3,c", "3"]
+# 二： 用最后一个逗号做分割符号
+# >> 'a,b3,c,3'.split(/(,[^,]+$)/)
+# => ["a,b3,c", ",3"]
 # output "egs-选项与解析"=>"0--inept&&0--inflexible&&0--influential&&1--adept",
 # 
 # csv结构中，选项之间分隔符为”_|_”，正确答案的数组编号（从0开始）与选项之间分隔符为 “||”
@@ -53,7 +66,7 @@ pp "step 3:  #{step_3[id]}" if DEBUG
 # in key: "正确答案解析"
 # 注意：不能改变原有顺序
 step_4 = step_3.map { |h|
-  answers, correct_id = h['egs-选项与解析'].split(/,/)
+  answers, correct_id = h['egs-选项与解析'].split(/,(\d)$/)
   #id = correct_id.to_i 这里的id会覆盖最上面random出的id?!
   correct_id = correct_id.to_i
   explanation = h['正确答案解析']
@@ -88,7 +101,7 @@ sorted = final_hash.each { |record|
   record['选项与解析'] = record['egs-选项与解析']
   record['选项是否随机出现-1是-0否- 默认1）'] = record['egs-选项是否随机出现']
   record['考点'] = record['egs-考点']
-  record['标签'] = record['egs-Egs对应标签题型']
+  record['标签'] = record['egs-标签']
   record['分值'] = record['egs-分值']
   record['时间限制'] = record['egs-时间限制']
   record['是否依赖上级父题目-1是-0否-默认1'] = record['egs-是否依赖上级父题目']
