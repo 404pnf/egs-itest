@@ -45,6 +45,14 @@ pp "step 3:  #{step_3[id]}" if DEBUG
 # input "选项与解析"=>"inept_|_inflexible_|_influential_|_adept,3",
 # 注意 选项中也可能出现英文逗号 "from, to _|_ to, from_|_test,1"
 # 因此不能直接用split分。除非用最后一个英文逗号
+# 最好的方法 destructuring
+# >> *answers, id = 'a,b3,c,3'.split(/,/)
+# => ["a", "b3", "c", "3"]
+# >> answers
+# => ["a", "b3", "c"]
+# >> id
+# => "3"
+# 非常漂亮
 # 两种方法
 # 一：用最后一位数字做分割符号
 # >> 'a,b3,c,3'.split(/(\d$)/)
@@ -66,7 +74,7 @@ pp "step 3:  #{step_3[id]}" if DEBUG
 # in key: "正确答案解析"
 # 注意：不能改变原有顺序
 step_4 = step_3.map { |h|
-  answers, correct_id = h['egs-选项与解析'].split(/,(\d)$/)
+  *answers, correct_id = h['egs-选项与解析'].split(',')
   #id = correct_id.to_i 这里的id会覆盖最上面random出的id?!
   correct_id = correct_id.to_i
   explanation = h['正确答案解析']
