@@ -85,18 +85,66 @@ step_3 = step_2.map {|h|
     egs_choices_str = egs_choices.join('&&')
     h['egs-选项与解析'] = egs_choices_str
   end
-  # 父题（既父级题目id为空的）：
-  # 对应EGS目标列“选项与解析”，但要扫描下csv中的“题干”，
-  # 如果题干内容在“选项与解析”中有，则直接使用“选项与解析”中的内容，前面加上"||"
-  # 否则为csv文件的“选项与解析”+“题干”，前面加上“||”
+ 
+# 父题（既父级题目id为空的）：                                                 
+# 对应EGS目标列“选项与解析”，但要扫描下csv中的“题干”，                         #
+# 如果题干内容在“选项与解析”中有，则直接使用“选项与解析”中的内容，前面加上"||" #
+# 否则为csv文件的“选项与解析”+“题干”，前面加上“||”                             #
+#                                                                              #
+# 以上是最初描述，实际发现有问题                                               #
+#                                                                              #
+# 按照规则                                                                     #
+#                                                                              #
+# 父级题：解析中含有题干内容的话，就直接用解析，不含有，就解析+题干            #
+#                                                                              #
+# 有不少题目的实际情况是                                                       #
+#                                                                              #
+# 解析为:                                                                      #
+# W: hello? M: hello! Q: What are they doing?                                  #
+#                                                                              #
+# 题干为下列：                                                                 #
+# '  '                                                                         #
+# '2'                                                                          #
+# '-'                                                                          #
+# 这些奇怪的东西                                                               #
+#                                                                              #
+# 这种情况下解析中自然不包含题干！                                             #
+#                                                                              #
+# 程序就自然把题干的文字又当成解析引入进来。                                   #
+#                                                                              #
+# 解决方法：                                                                   #
+#                                                                              #
+# 不用之前约定的东西                                                           #
+# 直接判断解析中有没有关键字“Q: ”                                              #
+# 如果有，就忽略题干内容                                                       #
+# 如果没有，拼题干内容                                                         #
+
+
   if h["father_id"].empty?
     explanation = h['选项与解析']
     tigan = h['题干']
-    if explanation.include? tigan
+    if explanation.include? 'Q:'
       egs_choices_str = "||#{explanation}"
     else
       egs_choices_str = "||#{explanation} Q: #{tigan}"
     end
+=begin    
+    if tigan.empty?
+      egs_choices_str = "||#{explanation}"
+    elsif tigan =~ /\s+/
+      # 有些题干是空白，而且是多个连续空白
+      # 如果一个空白 explanation.include? tigan 当然是true
+      # 但多个连续空白因为explanation中没有两个连续的，所以返回nil
+      # 因此这里必须单独处理！
+      egs_choices_str = "||#{explanation}"
+    elsif explanation.include? tigan
+      egs_choices_str = "||#{explanation}"
+    elsif explanation.include? 'Q:'
+      egs_choices_str = "||#{explanation}"
+    else
+      egs_choices_str = "||#{explanation} Q: #{tigan}"
+    end
+=end
     h['egs-选项与解析'] = egs_choices_str
   end
   h
@@ -155,7 +203,7 @@ del_no_mp3_hash = sorted.delete_if {|record|
 
 del_bad_transcript_hash = del_no_mp3_hash.delete_if {|record|
   # 选项与解析中没有音频脚本， M W Q 代表 M: W: Q: 三个脚本中的关键词man, woman, question
-  record['父级题目id自定义'].empty? && !(record['选项与解析'].include? ('M' || 'Q' || 'W')) 
+  record['父级题目id自定义'].empty? && !(record['选项与解析'].include? ('M:' || 'Q:' || 'W:')) 
 }
 
 temp_hash = del_bad_transcript_hash.select {|record|
