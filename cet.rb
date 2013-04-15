@@ -3,7 +3,7 @@
 require 'csv'
 require 'pp'
 
-DEBUG = nil #true
+DEBUG = true
 
 # stdlib zlib adler32 generate a checksum with numbers only
 # Zlib::adler32(str)
@@ -46,9 +46,6 @@ pp step_2[id] if DEBUG
 
 # step 3
 # 选项与解析
-# 父题（既父级题目id为空的）：
-# 对应EGS目标列“选项与解析”，但要扫描下csv中的“题干”，如果题干内容在“选项与解析”中有，则直接使用“选项与解析”中的内容，前面加上"||"
-# 否则为csv文件的“选项与解析”+“题干”，前面加上“||”
 
 # 子题（既父级题目id不为空的）：
 # csv结构中，'选项与解析' ->  选项之间分隔符为”_|_”，正确答案的数组编号（从0开始）与选项之间分隔符为 “||”
@@ -88,26 +85,18 @@ step_3 = step_2.map {|h|
     egs_choices_str = egs_choices.join('&&')
     h['egs-选项与解析'] = egs_choices_str
   end
+  # 父题（既父级题目id为空的）：
+  # 对应EGS目标列“选项与解析”，但要扫描下csv中的“题干”，
+  # 如果题干内容在“选项与解析”中有，则直接使用“选项与解析”中的内容，前面加上"||"
+  # 否则为csv文件的“选项与解析”+“题干”，前面加上“||”
   if h["father_id"].empty?
-    answers, correct_id = h['选项与解析'].split('||')
-    correct_id = correct_id.to_i
-    explanation = h['正确答案解析']
+    explanation = h['选项与解析']
     tigan = h['题干']
-    egs_choices = []
-    answers.split('_|_').each_with_index {|choice, idx|
-      if idx == correct_id
-        if explanation or  explanation.empty?
-          egs_choices << "||#{choice}"
-        elsif explanation.include? tigan
-          egs_choices <<  "||#{choice}||#{explanation}"     
-        else 
-          egs_choices << "||#{choice}||#{explanation} #{tigan}"
-        end
-        # else
-        # egs_choices << "0--#{choice}"
-      end
-    }
-    egs_choices_str = egs_choices.join('&&')
+    if explanation.include? tigan
+      egs_choices_str = "||#{explanation}"
+    else
+      egs_choices_str = "||#{explanation} Q: #{tigan}"
+    end
     h['egs-选项与解析'] = egs_choices_str
   end
   h
@@ -144,11 +133,46 @@ sorted = final_hash.each { |record|
   record['是否依赖上级父题目-1是-0否-默认1'] = record['egs-是否依赖上级父题目']
   record['子题目是否可以随机出现-1是-2否-默认2'] = record['egs-子题目是否可以随机出现']
   record['附件地址'] = record['egs-资源地址']
+  # 更新附件地址的mp3路径
+  # 从 /resourcefile/2021003/710/some-mp3-FILE.mp3
+  # 到 /itest/egs/upload/files/mp3/some-mp3-file.mp3
+  # 文件名转为小写
+  record['附件地址'] = '/itest/egs/upload/files/mp3/' + record['附件地址'].split('/').last.downcase if record['附件地址'].match('/')
   record['填空题输入框大小'] = record['egs-填空题输入大小']
   record.delete_if {|k, _|  k =~ /egs/}
   }
-  
-headers = sorted[0].keys.join(',')
+
+# 我们来清除wyq认为不符合要求的题
+# 这些题题在itest中一直没有方法去发现，在转到egs时我们删除这些错题
+
+# 必须保证该题是父题，否则所有子题都删除了！！
+record_id = [] ; sorted.each {|record| record_id << record['序号自定义']}
+
+del_no_mp3_hash = sorted.delete_if {|record|
+  # 删除没有'附件地址'的条目
+  record['父级题目id自定义'].empty? && record['附件地址'].empty? 
+}
+
+del_bad_transcript_hash = del_no_mp3_hash.delete_if {|record|
+  # 选项与解析中没有音频脚本， M W Q 代表 M: W: Q: 三个脚本中的关键词man, woman, question
+  record['父级题目id自定义'].empty? && !(record['选项与解析'].include? ('M' || 'Q' || 'W')) 
+}
+
+temp_hash = del_bad_transcript_hash.select {|record|
+  # 是子题，但对应的父级不存在
+  # 本次导出的题目中不存在有这种现象的
+  !record['父级题目id自定义'].empty? && !(record_id.include? record['父级题目id自定义'])
+}
+
+del_no_parent_id_hash = del_bad_transcript_hash.delete_if {|record|
+  # 是子题，但对应的父级不存在
+  !record['父级题目id自定义'].empty? && !(record_id.include? record['父级题目id自定义'])
+}
+
+
+pp "删除不符合要求的题目后，共有题目：#{del_no_parent_id_hash.size}条。"
+
+headers = del_no_parent_id_hash[0].keys.join(',')
 arr_of_csv = sorted.map { |h| h.values.to_csv(:force_quotes => true) }
 pp arr_of_csv[id] if DEBUG
 final_csv_str = ''
