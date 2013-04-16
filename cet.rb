@@ -3,7 +3,7 @@
 require 'csv'
 require 'pp'
 
-DEBUG = true
+DEBUG = nil #true
 
 # stdlib zlib adler32 generate a checksum with numbers only
 # Zlib::adler32(str)
@@ -128,23 +128,6 @@ step_3 = step_2.map {|h|
     else
       egs_choices_str = "||#{explanation} Q: #{tigan}"
     end
-=begin    
-    if tigan.empty?
-      egs_choices_str = "||#{explanation}"
-    elsif tigan =~ /\s+/
-      # 有些题干是空白，而且是多个连续空白
-      # 如果一个空白 explanation.include? tigan 当然是true
-      # 但多个连续空白因为explanation中没有两个连续的，所以返回nil
-      # 因此这里必须单独处理！
-      egs_choices_str = "||#{explanation}"
-    elsif explanation.include? tigan
-      egs_choices_str = "||#{explanation}"
-    elsif explanation.include? 'Q:'
-      egs_choices_str = "||#{explanation}"
-    else
-      egs_choices_str = "||#{explanation} Q: #{tigan}"
-    end
-=end
     h['egs-选项与解析'] = egs_choices_str
   end
   h
@@ -180,11 +163,11 @@ sorted = final_hash.each { |record|
   record['时间限制'] = record['egs-时间限制']
   record['是否依赖上级父题目-1是-0否-默认1'] = record['egs-是否依赖上级父题目']
   record['子题目是否可以随机出现-1是-2否-默认2'] = record['egs-子题目是否可以随机出现']
-  record['附件地址'] = record['egs-资源地址']
   # 更新附件地址的mp3路径
   # 从 /resourcefile/2021003/710/some-mp3-FILE.mp3
   # 到 /itest/egs/upload/files/mp3/some-mp3-file.mp3
   # 文件名转为小写
+  record['附件地址'] = record['egs-资源地址']
   record['附件地址'] = '/itest/egs/upload/files/mp3/' + record['附件地址'].split('/').last.downcase if record['附件地址'].match('/')
   record['填空题输入框大小'] = record['egs-填空题输入大小']
   record.delete_if {|k, _|  k =~ /egs/}
@@ -194,7 +177,7 @@ sorted = final_hash.each { |record|
 # 这些题题在itest中一直没有方法去发现，在转到egs时我们删除这些错题
 
 # 必须保证该题是父题，否则所有子题都删除了！！
-record_id = [] ; sorted.each {|record| record_id << record['序号自定义']}
+
 
 del_no_mp3_hash = sorted.delete_if {|record|
   # 删除没有'附件地址'的条目
@@ -203,25 +186,40 @@ del_no_mp3_hash = sorted.delete_if {|record|
 
 del_bad_transcript_hash = del_no_mp3_hash.delete_if {|record|
   # 选项与解析中没有音频脚本， M W Q 代表 M: W: Q: 三个脚本中的关键词man, woman, question
-  record['父级题目id自定义'].empty? && !(record['选项与解析'].include? ('M:' || 'Q:' || 'W:')) 
+  record['父级题目id自定义'].empty? && !(record['选项与解析'].include?('M:' || 'Q:' || 'W:')) 
 }
 
-temp_hash = del_bad_transcript_hash.select {|record|
+record_id = [] ; del_bad_transcript_hash.each {|record| record_id << record['序号自定义']}
+del_no_parent_id_hash = del_bad_transcript_hash.delete_if {|record|
   # 是子题，但对应的父级不存在
   # 本次导出的题目中不存在有这种现象的
   !record['父级题目id自定义'].empty? && !(record_id.include? record['父级题目id自定义'])
 }
 
-del_no_parent_id_hash = del_bad_transcript_hash.delete_if {|record|
-  # 是子题，但对应的父级不存在
-  !record['父级题目id自定义'].empty? && !(record_id.include? record['父级题目id自定义'])
+# let's sort by url to push all parent records to the bottom
+# this doesn't work
+#sort_by_mp3_url_hash = del_no_parent_id_hash.sort_by {|record|
+#  record['附件地址']
+#}
+# first group records by parent id
+sort_by_parent_id_hash = sort_by_mp3_url_hash.sort_by {|record|
+  if record['父级题目id自定义'].empty?
+    record['sort'] =  record['序号自定义']
+  else 
+    record['sort'] =  record['父级题目id自定义']
+  end
+  record['sort']
 }
 
+final_sorted = sort_by_parent_id_hash.each {|record|
+  record.delete_if {|k, _| k == 'sort'}
+  record
+}
 
 pp "删除不符合要求的题目后，共有题目：#{del_no_parent_id_hash.size}条。"
 
-headers = del_no_parent_id_hash[0].keys.join(',')
-arr_of_csv = sorted.map { |h| h.values.to_csv(:force_quotes => true) }
+headers = final_sorted[0].keys.join(',')
+arr_of_csv = final_sorted.map { |h| h.values.to_csv(:force_quotes => true) }
 pp arr_of_csv[id] if DEBUG
 final_csv_str = ''
 final_csv_str << headers << "\n" << arr_of_csv.join # arr_of_csv already has "\n" at the end of each record
