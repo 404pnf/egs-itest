@@ -3,6 +3,18 @@
 require 'csv'
 require 'pp'
 
+
+# 如何使用
+
+# ruby -w cet.rb cet.csv
+# 会生成 out-cet.csv
+
+# 需要用libreoffice打开生成文件并排序
+# 直接在libreoffcie中用 data > sort
+# 然后先按 sort 排列，再按附件地址 排列
+# 然后再删除 sort 这列
+# 比在程序中排序方便多了
+
 DEBUG = nil #true
 
 # stdlib zlib adler32 generate a checksum with numbers only
@@ -198,21 +210,29 @@ del_no_parent_id_hash = del_bad_transcript_hash.delete_if {|record|
 
 # let's sort by url to push all parent records to the bottom
 # this doesn't work
-#sort_by_mp3_url_hash = del_no_parent_id_hash.sort_by {|record|
+sort_by_mp3_url_hash = del_no_parent_id_hash.sort_by {|record|
 #  record['附件地址']
-#}
+}
 # first group records by parent id
-sort_by_parent_id_hash = sort_by_mp3_url_hash.sort_by {|record|
+sort_by_parent_id_hash = sort_by_mp3_url_hash.each {|record|
   if record['父级题目id自定义'].empty?
     record['sort'] =  record['序号自定义']
   else 
     record['sort'] =  record['父级题目id自定义']
   end
-  record['sort']
+  record
 }
 
+sort_by_parent_id_hash = sort_by_parent_id_hash.sort_by {|record|
+  record['sort']
+#  record['是否依赖上级父题目-1是-0否-默认1']
+}
 final_sorted = sort_by_parent_id_hash.each {|record|
-  record.delete_if {|k, _| k == 'sort'}
+  # 保留'sort'列，这样直接在libreoffcie中用 data > sort
+  # 然后先按 sort 排列，再按附件地址 排列
+  # 然后再删除 sort 这列
+  # 比在程序中排序方便多了
+  #record.delete_if {|k, _| k == 'sort'}
   record
 }
 
