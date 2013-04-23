@@ -2,7 +2,8 @@
 
 require 'csv'
 require 'pp'
-
+require 'html_massage'
+require 'sanitize'
 
 # 如何使用
 
@@ -23,6 +24,16 @@ DEBUG = nil #true
 # http://en.wikipedia.org/wiki/Adler-32
 
 input = ARGV[0]
+
+
+# help function
+def remove_html_class_and_id str
+ # str.gsub(/(<[^ ]+) [^>]+>/, '\1>') #别忘了之前的那个封闭标签不在\1中
+ #  str.gsub(/(<[^ \/]+) [^>]+>/,'\1>')
+  #Sanitize.clean(str, Sanitize::Config::RESTRICTED)
+  Sanitize.clean(str, Sanitize::Config::BASIC)
+end
+
 csv = CSV.read(input, :headers => true)
 # csv的每一条记录不是array它的class是CSV::Row
 # 需要先变为array 开始Hash[*array]总是报奇数项目就是因为这个出错误
@@ -81,7 +92,9 @@ step_3 = step_2.map {|h|
   if !h["father_id"].empty?
     answers, correct_id = h['选项与解析'].split('||')
     correct_id = correct_id.to_i
-    explanation = h['正确答案解析']
+    #explanation = HtmlMassage.html(h['正确答案解析']) #去掉html标签中的属性值
+    explanation = h['正确答案解析'].strip # strip surrounding white spaces
+    #explanation = remove_html_class_and_id explanation    
     egs_choices = []
     answers.split('_|_').each_with_index {|choice, idx|
       if idx == correct_id
@@ -133,8 +146,23 @@ step_3 = step_2.map {|h|
 
 
   if h["father_id"].empty?
+    # gem html_massage
+    # see: https://github.com/harlantwood/html_massage
+
+    # strip all attributes of html tags
+    # or else we got <p style="font-size: 10px" ... etc
+    # 额外过滤掉所有dvi标签的class和id属性
+    # HtmlMassage.html 没有这个功能？！
+    # <div id=""resourceScript"">
+    #=> "\n<div class=\"\"glossary\"\" id=\"\"Glossary\"\">\n"
+    #>> s.gsub(/<div [^>]+>/,'<div>')
+    #=> "\n<div>\n"
+    #explanation = HtmlMassage.html(h['选项与解析'])
     explanation = h['选项与解析']
+    explanation = remove_html_class_and_id explanation
+    #tigan = HtmlMassage.html(h['题干'])
     tigan = h['题干']
+    tigan = remove_html_class_and_id tigan
     if explanation.include? 'Q:'
       egs_choices_str = "||#{explanation}"
     else
@@ -208,37 +236,11 @@ del_no_parent_id_hash = del_bad_transcript_hash.delete_if {|record|
   !record['父级题目id自定义'].empty? && !(record_id.include? record['父级题目id自定义'])
 }
 
-# let's sort by url to push all parent records to the bottom
-# this doesn't work
-sort_by_mp3_url_hash = del_no_parent_id_hash.sort_by {|record|
-#  record['附件地址']
-}
-# first group records by parent id
-sort_by_parent_id_hash = sort_by_mp3_url_hash.each {|record|
-  if record['父级题目id自定义'].empty?
-    record['sort'] =  record['序号自定义']
-  else 
-    record['sort'] =  record['父级题目id自定义']
-  end
-  record
-}
-
-sort_by_parent_id_hash = sort_by_parent_id_hash.sort_by {|record|
-  record['sort']
-#  record['是否依赖上级父题目-1是-0否-默认1']
-}
-final_sorted = sort_by_parent_id_hash.each {|record|
-  # 保留'sort'列，这样直接在libreoffcie中用 data > sort
-  # 然后先按 sort 排列，再按附件地址 排列
-  # 然后再删除 sort 这列
-  # 比在程序中排序方便多了
-  #record.delete_if {|k, _| k == 'sort'}
-  record
-}
+final_sorted = del_no_parent_id_hash
 
 pp "删除不符合要求的题目后，共有题目：#{del_no_parent_id_hash.size}条。"
 
-headers = final_sorted[0].keys.join(',')
+headers = final_sorted[1].keys.join(',')
 arr_of_csv = final_sorted.map { |h| h.values.to_csv(:force_quotes => true) }
 pp arr_of_csv[id] if DEBUG
 final_csv_str = ''
