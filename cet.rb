@@ -162,7 +162,7 @@ step_3 = step_2.map {|h|
     explanation = remove_html_class_and_id explanation
     #tigan = HtmlMassage.html(h['题干'])
     tigan = h['题干']
-    tigan = remove_html_class_and_id tigan
+    #tigan = remove_html_class_and_id tigan # 不能取消属性，否则题干消失了！
     if explanation.include? 'Q:'
       egs_choices_str = "||#{explanation}"
     else
