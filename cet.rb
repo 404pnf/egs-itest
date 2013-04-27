@@ -236,7 +236,21 @@ del_no_parent_id_hash = del_bad_transcript_hash.delete_if {|record|
   !record['父级题目id自定义'].empty? && !(record_id.include? record['父级题目id自定义'])
 }
 
-final_sorted = del_no_parent_id_hash
+
+sort_by_parent_id_hash = del_no_parent_id_hash.sort_by {|record|
+  if record['父级题目id自定义'].empty?
+    record['sort'] =  record['序号自定义']
+  else 
+    record['sort'] =  record['父级题目id自定义']
+  end
+  record['sort']
+}
+
+final_sorted = sort_by_parent_id_hash.each {|record|
+  record
+}
+
+#final_sorted = del_no_parent_id_hash
 
 pp "删除不符合要求的题目后，共有题目：#{del_no_parent_id_hash.size}条。"
 
